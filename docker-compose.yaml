@@ -1,0 +1,38 @@
+services:
+  # CONTENEDOR 1: Tu API de prueba (que luego será la real)
+  servicio_api:
+    build: 
+      context: ./api
+      dockerfile: Dockerfile
+    volumes:
+      - ./api:/app
+      - ./uploads:/uploads # Carpeta compartida para imágenes
+    environment:
+      - DB_SERVER=cacao_db
+      - DB_USER=SA
+      - DB_PASSWORD=Cacao_Secure_2026!
+    ports:
+      - "8000:8000"
+
+  # CONTENEDOR 2: Tu Backend de prueba (que luego será el real)
+  servicio_backend:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+      - ./uploads:/uploads # Carpeta compartida para imágenes
+
+  # CONTENEDOR 3: Base de Datos SQL Server (Nuevo servicio)
+  db_service:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: cacao_db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Cacao_Secure_2026!
+    ports:
+      - "1434:1433" # <-- ¡Evitamos el choque de puertos usando el 1434 en Windows!
+    volumes:
+      - db_data:/var/opt/mssql
+      - ./db/init.sql:/init.sql
+
+volumes:
+  db_data:
