@@ -21,7 +21,7 @@ from reportlab.platypus import (
     Spacer,
 )
 
-from app.models import AnalisisMedia, ResultadoResumen, DeteccionYolo
+from app.models.models import AnalisisMedia, ResultadoResumen, DeteccionYolo
 
 
 def generar_pdf_reporte(

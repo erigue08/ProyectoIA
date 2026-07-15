@@ -39,4 +39,4 @@ RUN mkdir -p /uploads/perfiles /uploads/analisis
 EXPOSE 8000
 
 # Comando de arranque para desarrollo
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

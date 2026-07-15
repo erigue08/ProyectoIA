@@ -19,7 +19,16 @@ services:
     build: ./backend
     volumes:
       - ./backend:/app
+      - ./api/app/models:/app/app/models
+      - ./api/app/core:/app/app/core
       - ./uploads:/uploads # Carpeta compartida para imágenes
+    environment:
+      - DB_SERVER=cacao_db
+      - DB_USER=SA
+      - DB_PASSWORD=Cacao_Secure_2026!
+      # --- VARIABLES DE RUNPOD ---
+      - RUNPOD_API_URL=http://86.200.48.42:10077
+      - RUNPOD_WS_URL=ws://86.200.48.42:10077
 
   # CONTENEDOR 3: Base de Datos SQL Server (Nuevo servicio)
   db_service:
@@ -33,6 +42,19 @@ services:
     volumes:
       - db_data:/var/opt/mssql
       - ./db/init.sql:/init.sql
-
+  # Contenedor 4: Servicio de frontend
+  servicio_frontend:
+    build: ./frontend
+    container_name: docker_ia_servicio_frontend
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - PORT=8443
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - servicio_api
 volumes:
   db_data:

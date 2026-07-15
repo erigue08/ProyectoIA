@@ -1,0 +1,7 @@
+# --- Conexión a SQL Server ---
+pyodbc==5.2.0
+sqlalchemy==2.0.36
+
+# --- Comunicación con RunPod (HTTP y WebSockets) ---
+requests==2.32.3
+websockets==12.0

@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import usuarios, analisis
+from app.controllers import usuarios, analisis
 
 # ------------------------------------------------------------
 # Directorio físico de uploads (compartido como volumen Docker

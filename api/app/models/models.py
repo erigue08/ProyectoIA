@@ -9,7 +9,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from app.database import Base
+from app.core.database import Base
 
 
 class Usuario(Base):
@@ -33,6 +33,7 @@ class AnalisisMedia(Base):
     id_usuario = Column(Integer, ForeignKey("Usuarios.id_usuario"), nullable=False)
     nombre_archivo = Column(String(255), nullable=False)
     ruta_archivo = Column(String(500), nullable=False)
+    ruta_archivo_procesado = Column(String, nullable=True)
     tipo_media = Column(String(20), nullable=False)  # ej: "imagen" | "video"
     estado_procesamiento = Column(String(30), nullable=False, default="Pendiente")
     fecha_subida = Column(DateTime, server_default=func.now())

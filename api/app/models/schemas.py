@@ -42,6 +42,7 @@ class AnalisisHistorialItem(BaseModel):
     nombre_archivo: str
     estado_procesamiento: str
     fecha_subida: datetime
+    ruta_archivo_procesado: Optional[str] = None
 
 
 class ResumenResultado(BaseModel):
@@ -69,3 +70,4 @@ class ResultadosCompletos(BaseModel):
     """Combina el resumen de métricas con el detalle de detecciones YOLO."""
     resumen: Optional[ResumenResultado] = None
     detecciones: List[DeteccionItem] = []
+    ruta_archivo_procesado: Optional[str] = None
