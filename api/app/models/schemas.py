@@ -71,3 +71,4 @@ class ResultadosCompletos(BaseModel):
     resumen: Optional[ResumenResultado] = None
     detecciones: List[DeteccionItem] = []
     ruta_archivo_procesado: Optional[str] = None
+    nombre_archivo: Optional[str] = None

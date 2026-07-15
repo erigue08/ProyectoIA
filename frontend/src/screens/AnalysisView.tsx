@@ -1,52 +1,15 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 interface AnalysisRecord {
   id: string
   fileName: string
   type: 'video' | 'image'
-  status: 'Análisis Terminado' | 'Procesando' | 'Error'
+  status: 'Análisis Terminado' | 'Procesando' | 'Pendiente' | 'Error'
   timestamp: string
   duration?: string
   thumbnail: string
 }
-
-const mockRecords: AnalysisRecord[] = [
-  {
-    id: 'a1',
-    fileName: 'parcela_norte_julio2026.mp4',
-    type: 'video',
-    status: 'Análisis Terminado',
-    timestamp: '13 jul 2026, 09:14',
-    duration: '2:34',
-    thumbnail: 'https://images.unsplash.com/photo-1605027990121-cbae9e0642df?w=120&h=80&fit=crop&auto=format',
-  },
-  {
-    id: 'a2',
-    fileName: 'muestra_cacao_lote_B.jpg',
-    type: 'image',
-    status: 'Análisis Terminado',
-    timestamp: '12 jul 2026, 16:47',
-    thumbnail: 'https://images.unsplash.com/photo-1517178961710-5c5985ed22bd?w=120&h=80&fit=crop&auto=format',
-  },
-  {
-    id: 'a3',
-    fileName: 'inspeccion_finca_las_palmas.mp4',
-    type: 'video',
-    status: 'Análisis Terminado',
-    timestamp: '10 jul 2026, 11:02',
-    duration: '5:12',
-    thumbnail: 'https://images.unsplash.com/photo-1580500930273-b27d34f0b51c?w=120&h=80&fit=crop&auto=format',
-  },
-  {
-    id: 'a4',
-    fileName: 'cosecha_cacao_fino.jpg',
-    type: 'image',
-    status: 'Análisis Terminado',
-    timestamp: '08 jul 2026, 08:30',
-    thumbnail: 'https://images.unsplash.com/photo-1606787364406-a3cdf06c6d0c?w=120&h=80&fit=crop&auto=format',
-  },
-]
 
 interface Props {
   onShowResults: (id: string) => void
@@ -54,10 +17,62 @@ interface Props {
 
 export default function AnalysisView({ onShowResults }: Props) {
   const [dragging, setDragging] = useState(false)
-  const [records, setRecords] = useState(mockRecords)
+  const [records, setRecords] = useState<AnalysisRecord[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [loadingHistory, setLoadingHistory] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Cargar historial real del usuario desde la API
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const userId = localStorage.getItem('usuario_id');
+      if (!userId) {
+        setLoadingHistory(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/analisis/historial/${userId}`);
+        if (!response.ok) throw new Error('Error al obtener historial');
+
+        const data = await response.json();
+
+        const mapped: AnalysisRecord[] = data.map((item: any) => {
+          // Mapear estado del backend al estado del frontend
+          let status: AnalysisRecord['status'] = 'Pendiente';
+          if (item.estado_procesamiento === 'Terminado') status = 'Análisis Terminado';
+          else if (item.estado_procesamiento === 'Procesando') status = 'Procesando';
+          else if (item.estado_procesamiento === 'Error') status = 'Error';
+          else if (item.estado_procesamiento === 'Pendiente') status = 'Pendiente';
+
+          const isVideo = item.nombre_archivo?.match(/\.(mp4|avi|mov|mkv)$/i);
+
+          // Usar archivo procesado como thumbnail si existe, sino un placeholder
+          const thumbnail = item.ruta_archivo_procesado
+            ? `${API_BASE_URL}/static${item.ruta_archivo_procesado}`
+            : 'https://images.unsplash.com/photo-1605027990121-cbae9e0642df?w=120&h=80&fit=crop&auto=format';
+
+          return {
+            id: String(item.id_analisis),
+            fileName: item.nombre_archivo,
+            type: isVideo ? 'video' : 'image',
+            status,
+            timestamp: new Date(item.fecha_subida).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' }),
+            thumbnail,
+          };
+        });
+
+        setRecords(mapped);
+      } catch (error) {
+        console.error("Error al cargar historial:", error);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    fetchHistory();
+  }, []);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -68,7 +83,15 @@ export default function AnalysisView({ onShowResults }: Props) {
     }
   }
 
-  const deleteRecord = (id: string) => {
+  const deleteRecord = async (id: string) => {
+    // Eliminar del backend si no es un registro temporal
+    if (!id.startsWith('temp-')) {
+      try {
+        await fetch(`${API_BASE_URL}/analisis/${id}`, { method: 'DELETE' });
+      } catch (error) {
+        console.error("Error al eliminar análisis:", error);
+      }
+    }
     setRecords((r) => r.filter((rec) => rec.id !== id))
   }
 
@@ -94,33 +117,36 @@ export default function AnalysisView({ onShowResults }: Props) {
       type: isVideo ? 'video' : 'image',
       status: 'Procesando',
       timestamp: new Date().toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' }),
-      thumbnail: fileUrl, // <--- Aquí usamos el enlace real
+      thumbnail: fileUrl,
     };
 
     setRecords((prev) => [newRecord, ...prev]);
 
-    // 2. Preparar el archivo para Theobrama
+    // 2. Preparar el archivo para la API — endpoint unificado /analisis/subir
+    const userId = localStorage.getItem('usuario_id');
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('archivo', file);
 
     try {
-      const endpoint = isVideo ? '/upload_video' : '/upload_image';
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/analisis/subir?id_usuario=${userId}`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) throw new Error(`Error en el servidor: ${response.statusText}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.detail || `Error en el servidor: ${response.statusText}`);
+      }
 
       const data = await response.json();
       console.log("¡Archivo aceptado por Theobrama!", data);
 
-      // 3. Actualizamos el estado del registro temporal
-      if (isVideo) {
-        setRecords((prev) => prev.map((rec) => (rec.id === tempId ? { ...rec, id: data.job_id } : rec)));
-      } else {
-        setRecords((prev) => prev.map((rec) => (rec.id === tempId ? { ...rec, status: 'Análisis Terminado' } : rec)));
-      }
+      // 3. Actualizamos el registro temporal con el ID real del análisis
+      setRecords((prev) => prev.map((rec) => 
+        rec.id === tempId 
+          ? { ...rec, id: String(data.id_analisis), status: 'Pendiente' } 
+          : rec
+      ));
 
     } catch (error) {
       console.error("Fallo al enviar el archivo:", error);
@@ -194,26 +220,35 @@ export default function AnalysisView({ onShowResults }: Props) {
           <span className="text-xs text-stone-400">{records.length} resultados</span>
         </div>
 
-        <div className="space-y-3">
-          {records.map((rec) => (
-            <AnalysisCard
-              key={rec.id}
-              rec={rec}
-              editingId={editingId}
-              editName={editName}
-              onEditName={setEditName}
-              onStartEdit={startEdit}
-              onSaveEdit={saveEdit}
-              onDelete={deleteRecord}
-              onShowResults={onShowResults}
-            />
-          ))}
-        </div>
-
-        {records.length === 0 && (
-          <div className="text-center py-12 text-stone-400 text-sm">
-            No hay análisis recientes
+        {loadingHistory ? (
+          <div className="text-center py-12">
+            <div className="w-8 h-8 border-4 border-cacao-200 border-t-cacao-700 rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-stone-400">Cargando historial...</p>
           </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {records.map((rec) => (
+                <AnalysisCard
+                  key={rec.id}
+                  rec={rec}
+                  editingId={editingId}
+                  editName={editName}
+                  onEditName={setEditName}
+                  onStartEdit={startEdit}
+                  onSaveEdit={saveEdit}
+                  onDelete={deleteRecord}
+                  onShowResults={onShowResults}
+                />
+              ))}
+            </div>
+
+            {records.length === 0 && (
+              <div className="text-center py-12 text-stone-400 text-sm">
+                No hay análisis recientes. ¡Suba un archivo para comenzar!
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -234,6 +269,15 @@ interface CardProps {
 function AnalysisCard({ rec, editingId, editName, onEditName, onStartEdit, onSaveEdit, onDelete, onShowResults }: CardProps) {
   const isEditing = editingId === rec.id
   const isVideo = rec.type === 'video'
+
+  // Color del indicador de estado
+  const statusColor = rec.status === 'Análisis Terminado' ? 'bg-sage-500'
+    : rec.status === 'Procesando' || rec.status === 'Pendiente' ? 'bg-amber-400'
+    : 'bg-red-400';
+
+  const statusTextColor = rec.status === 'Análisis Terminado' ? 'text-sage-600'
+    : rec.status === 'Procesando' || rec.status === 'Pendiente' ? 'text-amber-600'
+    : 'text-red-600';
 
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-4 flex items-center gap-4 hover:border-cacao-200 hover:shadow-sm transition-all">
@@ -273,8 +317,8 @@ function AnalysisCard({ rec, editingId, editName, onEditName, onStartEdit, onSav
           <p className="text-sm font-semibold text-cacao-800 truncate">{rec.fileName}</p>
         )}
         <div className="flex items-center gap-3 mt-0.5">
-          <span className="inline-flex items-center gap-1 text-xs text-sage-600 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-sage-500 inline-block" />
+          <span className={`inline-flex items-center gap-1 text-xs ${statusTextColor} font-medium`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${statusColor} inline-block`} />
             {rec.status}
           </span>
           <span className="text-xs text-stone-400">{rec.timestamp}</span>
@@ -286,12 +330,19 @@ function AnalysisCard({ rec, editingId, editName, onEditName, onStartEdit, onSav
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          onClick={() => onShowResults(rec.id)}
-          className="px-4 py-1.5 bg-cacao-700 hover:bg-cacao-600 text-cacao-50 text-xs font-semibold rounded-lg transition-all"
-        >
-          Mostrar Resultados
-        </button>
+        {(rec.status === 'Análisis Terminado') && (
+          <button
+            onClick={() => onShowResults(rec.id)}
+            className="px-4 py-1.5 bg-cacao-700 hover:bg-cacao-600 text-cacao-50 text-xs font-semibold rounded-lg transition-all"
+          >
+            Mostrar Resultados
+          </button>
+        )}
+        {(rec.status === 'Procesando' || rec.status === 'Pendiente') && (
+          <span className="px-3 py-1.5 bg-amber-50 text-amber-700 text-xs font-semibold rounded-lg border border-amber-200">
+            En proceso...
+          </span>
+        )}
         <button
           onClick={() => onStartEdit(rec)}
           title="Editar"

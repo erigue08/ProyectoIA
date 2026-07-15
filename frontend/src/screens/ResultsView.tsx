@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie,
@@ -81,8 +81,8 @@ export default function ResultsView({ analysisId, onBack }: Props) {
           return;
         }
 
-        // Petición a tu API para extraer los resultados reales
-        const response = await fetch(`${API_BASE_URL}/analisis/${analysisId}`);
+        // Petición a la API — endpoint correcto: /analisis/{id}/resultados
+        const response = await fetch(`${API_BASE_URL}/analisis/${analysisId}/resultados`);
         
         if (!response.ok) {
           throw new Error('Error al obtener datos del servidor');
@@ -90,32 +90,56 @@ export default function ResultsView({ analysisId, onBack }: Props) {
 
         const realData = await response.json();
 
-        // Adaptador: Mapea los resultados crudos de YOLO a la estructura de colores de Figma
+        // Agrupar detecciones YOLO por clase para el gráfico de conteo
+        const classCounts: Record<string, number> = {};
+        for (const det of realData.detecciones || []) {
+          const clase = det.clase_detectada || 'Desconocido';
+          classCounts[clase] = (classCounts[clase] || 0) + 1;
+        }
+
+        // Mapear clases a colores del diseño Figma
+        const classColorMap: Record<string, string> = {
+          'Maduro': '#c0844a', 'maduro': '#c0844a',
+          'Verde': '#6d9f48', 'verde': '#6d9f48',
+          'Sobremaduro': '#8b5e3c', 'sobremaduro': '#8b5e3c',
+          'Dañado': '#a8a29e', 'danado': '#a8a29e', 'dañado': '#a8a29e',
+        };
+        const defaultColor = '#78716c';
+
+        const cacaoData = Object.entries(classCounts).map(([label, count]) => ({
+          label,
+          count,
+          color: classColorMap[label] || defaultColor,
+        }));
+
+        // Calcular porcentajes de enfermedades desde resumen
+        const resumen = realData.resumen || {};
+        const pctSanos = resumen.porcentaje_sanos || 0;
+        const pctEnfermos = resumen.porcentaje_enfermos || 0;
+
+        // Construir URL de archivo procesado
+        const thumbnailUrl = realData.ruta_archivo_procesado
+          ? `${API_BASE_URL}/static${realData.ruta_archivo_procesado}`
+          : fallbackData.thumbnail;
+
         const mappedData = {
           fileName: realData.nombre_archivo || 'Analisis_Theobrama.mp4',
-          thumbnail: realData.ruta_archivo_procesado 
-            ? `${API_BASE_URL}${realData.ruta_archivo_procesado}` 
-            : fallbackData.thumbnail,
+          thumbnail: thumbnailUrl,
           isVideo: true, 
           
-          // Ajusta las variables (realData.maduros, etc.) según los nombres exactos que exponga tu GET endpoint
-          cacao: [
-            { label: 'Maduros', count: realData.maduros || 0, color: '#c0844a' },
-            { label: 'Verdes', count: realData.verdes || 0, color: '#6d9f48' },
-            { label: 'Sobremaduro', count: realData.sobremaduros || 0, color: '#8b5e3c' },
-            { label: 'Dañados', count: realData.danados || 0, color: '#a8a29e' },
+          cacao: cacaoData.length > 0 ? cacaoData : [
+            { label: 'Sin datos', count: 0, color: '#a8a29e' },
           ],
           
           diseases: [
-            { name: 'Monilia', affected: realData.monilia || 0, healthy: 100 - (realData.monilia || 0) },
-            { name: 'Fitóftora', affected: realData.fitoftora || 0, healthy: 100 - (realData.fitoftora || 0) },
-            { name: 'Escoba bruja', affected: realData.escoba || 0, healthy: 100 - (realData.escoba || 0) },
+            { name: 'Sanos', affected: pctSanos, healthy: 100 - pctSanos },
+            { name: 'Enfermos', affected: pctEnfermos, healthy: 100 - pctEnfermos },
           ],
           
           metrics: [
-            { label: 'Total detectado', value: String(realData.total_frutos_detectados || 0), sub: 'frutos procesados', color: '#8b5e3c' },
-            { label: 'Etapa Predominante', value: realData.etapa_predominante || 'N/A', sub: 'tendencia general', color: '#6b4423' },
-            { label: 'Índice de IA', value: 'Completo', sub: 'procesado en servidor', color: '#4d7a2e' },
+            { label: 'Total detectado', value: String(resumen.total_frutos_detectados || 0), sub: 'frutos procesados', color: '#8b5e3c' },
+            { label: 'Etapa Predominante', value: resumen.etapa_predominante || 'N/A', sub: 'tendencia general', color: '#6b4423' },
+            { label: 'Detecciones YOLO', value: String((realData.detecciones || []).length), sub: 'bounding boxes', color: '#4d7a2e' },
           ],
         };
 

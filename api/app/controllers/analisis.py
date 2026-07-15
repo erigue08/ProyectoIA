@@ -51,7 +51,7 @@ def obtener_resultados(id_analisis: int, db: Session = Depends(get_db)):
     Devuelve un JSON anidado combinando el resumen de métricas
     (Resultados_Resumen) y el detalle de bounding boxes (Detecciones_YOLO).
     """
-    analisis_repository._obtener_analisis_o_404(id_analisis, db)
+    analisis = analisis_repository._obtener_analisis_o_404(id_analisis, db)
 
     resumen_db = analisis_repository.obtener_resumen_db(id_analisis, db)
     detecciones_db = analisis_repository.obtener_detecciones_db(id_analisis, db)
@@ -59,6 +59,8 @@ def obtener_resultados(id_analisis: int, db: Session = Depends(get_db)):
     return ResultadosCompletos(
         resumen=ResumenResultado.model_validate(resumen_db) if resumen_db else None,
         detecciones=[DeteccionItem.model_validate(d) for d in detecciones_db],
+        ruta_archivo_procesado=analisis.ruta_archivo_procesado,
+        nombre_archivo=analisis.nombre_archivo,
     )
 
 @router.get("/{id_analisis}/exportar")

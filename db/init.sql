@@ -32,6 +32,7 @@ CREATE TABLE Analisis_Media (
     id_usuario INT NOT NULL,
     nombre_archivo NVARCHAR(200) NOT NULL,
     ruta_archivo NVARCHAR(500) NOT NULL,
+    ruta_archivo_procesado NVARCHAR(500) NULL,
     tipo_media NVARCHAR(20) CHECK (tipo_media IN ('imagen', 'video')),
     estado_procesamiento NVARCHAR(50) DEFAULT 'Pendiente',
     fecha_subida DATETIME2 DEFAULT CURRENT_TIMESTAMP,

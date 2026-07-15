@@ -11,6 +11,8 @@ type ViewMode = 'login' | 'register' | 'forgot';
 export default function LoginScreen({ onLogin }: Props) {
   const [usuario, setUsuario] = useState('')
   const [contrasena, setContrasena] = useState('')
+  const [nombreCompleto, setNombreCompleto] = useState('')
+  const [correo, setCorreo] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
@@ -24,6 +26,16 @@ export default function LoginScreen({ onLogin }: Props) {
     // Validación básica según el modo
     if (!usuario) {
       setErrorMsg('Por favor ingrese su usuario');
+      setSuccessMsg('');
+      return;
+    }
+    if (viewMode === 'register' && !nombreCompleto) {
+      setErrorMsg('Por favor ingrese su nombre completo');
+      setSuccessMsg('');
+      return;
+    }
+    if (viewMode === 'register' && !correo) {
+      setErrorMsg('Por favor ingrese su correo electrónico');
       setSuccessMsg('');
       return;
     }
@@ -53,19 +65,24 @@ export default function LoginScreen({ onLogin }: Props) {
         
       } else if (viewMode === 'register') {
         // --- LÓGICA DE REGISTRO ---
-        const response = await fetch(`${API_BASE_URL}/registro`, {
+        const response = await fetch(`${API_BASE_URL}/usuarios/registro`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            nombre_completo: nombreCompleto,
             nombre_usuario: usuario,
+            correo_electronico: correo,
             contrasena: contrasena
           })
         });
 
-        if (!response.ok) throw new Error('No se pudo registrar. El usuario podría ya existir.');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => null);
+          throw new Error(errData?.detail || 'No se pudo registrar. El usuario o correo podría ya existir.');
+        }
 
         const data = await response.json();
-        localStorage.setItem('usuario_id', data.id_usuario || 'nuevo_usuario');
+        localStorage.setItem('usuario_id', String(data.id_usuario));
         onLogin();
 
       } else {
@@ -172,6 +189,22 @@ export default function LoginScreen({ onLogin }: Props) {
                 </div>
               )}
 
+              {/* Campos adicionales para registro */}
+              {viewMode === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-cacao-700 mb-1.5 tracking-wide uppercase">
+                    Nombre Completo
+                  </label>
+                  <input
+                    type="text"
+                    value={nombreCompleto}
+                    onChange={(e) => setNombreCompleto(e.target.value)}
+                    placeholder="Ingrese su nombre completo"
+                    className="w-full px-3.5 py-2.5 bg-white border border-cacao-200 rounded-lg text-sm text-cacao-800 placeholder-cacao-300 focus:outline-none focus:border-cacao-500 focus:ring-2 focus:ring-cacao-200 transition-all"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-cacao-700 mb-1.5 tracking-wide uppercase">
                   Usuario
@@ -184,6 +217,22 @@ export default function LoginScreen({ onLogin }: Props) {
                   className="w-full px-3.5 py-2.5 bg-white border border-cacao-200 rounded-lg text-sm text-cacao-800 placeholder-cacao-300 focus:outline-none focus:border-cacao-500 focus:ring-2 focus:ring-cacao-200 transition-all"
                 />
               </div>
+
+              {/* Campo de correo electrónico para registro */}
+              {viewMode === 'register' && (
+                <div>
+                  <label className="block text-xs font-semibold text-cacao-700 mb-1.5 tracking-wide uppercase">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                    placeholder="correo@ejemplo.com"
+                    className="w-full px-3.5 py-2.5 bg-white border border-cacao-200 rounded-lg text-sm text-cacao-800 placeholder-cacao-300 focus:outline-none focus:border-cacao-500 focus:ring-2 focus:ring-cacao-200 transition-all"
+                  />
+                </div>
+              )}
               
               {/* Ocultamos la contraseña si estamos en modo recuperar */}
               {viewMode !== 'forgot' && (
@@ -235,7 +284,7 @@ export default function LoginScreen({ onLogin }: Props) {
                   </button>
                   <button 
                     type="button"
-                    onClick={() => { setViewMode('register'); setErrorMsg(''); setSuccessMsg(''); }}
+                    onClick={() => { setViewMode('register'); setErrorMsg(''); setSuccessMsg(''); setNombreCompleto(''); setCorreo(''); }}
                     className="text-xs text-sage-600 hover:text-sage-700 transition-colors font-medium"
                   >
                     + Registrar nuevo usuario
