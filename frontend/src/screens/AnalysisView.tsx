@@ -23,8 +23,10 @@ export default function AnalysisView({ onShowResults }: Props) {
   const [loadingHistory, setLoadingHistory] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Cargar historial real del usuario desde la API
+  // FIX: Polling para actualizar estados y preservación del thumbnail local (blob)
   useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
     const fetchHistory = async () => {
       const userId = localStorage.getItem('usuario_id');
       if (!userId) {
@@ -38,32 +40,43 @@ export default function AnalysisView({ onShowResults }: Props) {
 
         const data = await response.json();
 
-        const mapped: AnalysisRecord[] = data.map((item: any) => {
-          // Mapear estado del backend al estado del frontend
-          let status: AnalysisRecord['status'] = 'Pendiente';
-          if (item.estado_procesamiento === 'Terminado') status = 'Análisis Terminado';
-          else if (item.estado_procesamiento === 'Procesando') status = 'Procesando';
-          else if (item.estado_procesamiento === 'Error') status = 'Error';
-          else if (item.estado_procesamiento === 'Pendiente') status = 'Pendiente';
+        // Usamos la versión de función de setRecords para acceder al estado previo
+        setRecords((prevRecords) => {
+          return data.map((item: any) => {
+            let status: AnalysisRecord['status'] = 'Pendiente';
+            if (item.estado_procesamiento === 'Terminado') status = 'Análisis Terminado';
+            else if (item.estado_procesamiento === 'Procesando') status = 'Procesando';
+            else if (item.estado_procesamiento === 'Error') status = 'Error';
+            else if (item.estado_procesamiento === 'Pendiente') status = 'Pendiente';
 
-          const isVideo = item.nombre_archivo?.match(/\.(mp4|avi|mov|mkv)$/i);
+            const isVideo = item.nombre_archivo?.match(/\.(mp4|avi|mov|mkv)$/i);
+            const existingRecord = prevRecords.find((r) => r.id === String(item.id_analisis));
 
-          // Usar archivo procesado como thumbnail si existe, sino un placeholder
-          const thumbnail = item.ruta_archivo_procesado
-            ? `${API_BASE_URL}/static${item.ruta_archivo_procesado}`
-            : 'https://images.unsplash.com/photo-1605027990121-cbae9e0642df?w=120&h=80&fit=crop&auto=format';
+            // Si ya está procesado, usa la ruta del backend. Si no, intenta buscar si ya teníamos un blob local.
+            let finalThumbnail = item.ruta_archivo_procesado
+              ? `${API_BASE_URL}/static${item.ruta_archivo_procesado}`
+              : null;
 
-          return {
-            id: String(item.id_analisis),
-            fileName: item.nombre_archivo,
-            type: isVideo ? 'video' : 'image',
-            status,
-            timestamp: new Date(item.fecha_subida).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' }),
-            thumbnail,
-          };
+            if (!finalThumbnail) {
+              if (existingRecord && existingRecord.thumbnail.startsWith('blob:')) {
+                // Mantiene la imagen que subiste desde tu disco mientras carga
+                finalThumbnail = existingRecord.thumbnail;
+              } else {
+                // Solo usa la imagen por defecto si no hay blob previo
+                finalThumbnail = 'https://images.unsplash.com/photo-1605027990121-cbae9e0642df?w=120&h=80&fit=crop&auto=format';
+              }
+            }
+
+            return {
+              id: String(item.id_analisis),
+              fileName: item.nombre_archivo,
+              type: isVideo ? 'video' : 'image',
+              status,
+              timestamp: new Date(item.fecha_subida).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' }),
+              thumbnail: finalThumbnail,
+            };
+          });
         });
-
-        setRecords(mapped);
       } catch (error) {
         console.error("Error al cargar historial:", error);
       } finally {
@@ -71,7 +84,13 @@ export default function AnalysisView({ onShowResults }: Props) {
       }
     };
 
-    fetchHistory();
+    fetchHistory(); // Llamada inicial
+    
+    // Polling: Consulta a la API cada 5 segundos
+    intervalId = setInterval(fetchHistory, 5000); 
+
+    // Limpieza del intervalo al desmontar el componente
+    return () => clearInterval(intervalId);
   }, []);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -84,15 +103,29 @@ export default function AnalysisView({ onShowResults }: Props) {
   }
 
   const deleteRecord = async (id: string) => {
-    // Eliminar del backend si no es un registro temporal
-    if (!id.startsWith('temp-')) {
-      try {
-        await fetch(`${API_BASE_URL}/analisis/${id}`, { method: 'DELETE' });
-      } catch (error) {
-        console.error("Error al eliminar análisis:", error);
-      }
+    // Si es un archivo temporal que aún se está subiendo, lo borramos de inmediato
+    if (id.startsWith('temp-')) {
+      setRecords((r) => r.filter((rec) => rec.id !== id));
+      return;
     }
-    setRecords((r) => r.filter((rec) => rec.id !== id))
+
+    try {
+      // 1. Esperamos a que la API haga su trabajo
+      const response = await fetch(`${API_BASE_URL}/analisis/${id}`, { method: 'DELETE' });
+    
+      // 2. Si la API nos da un error (ej. 500 o 404), lanzamos una excepción
+      if (!response.ok) {
+        throw new Error('El servidor no pudo eliminar el registro.');
+      }
+    
+      // 3. SOLO si el backend respondió correctamente (200 OK), lo quitamos de la UI
+      setRecords((r) => r.filter((rec) => rec.id !== id));
+    
+    } catch (error) {
+      console.error("Error al eliminar análisis:", error);
+      alert("Hubo un problema al eliminar el análisis en el servidor. Revisa los logs del backend.");
+      // Como hay error, NO hacemos el setRecords. La tarjeta se queda visible.
+    } 
   }
 
   const startEdit = (rec: AnalysisRecord) => {
@@ -122,7 +155,7 @@ export default function AnalysisView({ onShowResults }: Props) {
 
     setRecords((prev) => [newRecord, ...prev]);
 
-    // 2. Preparar el archivo para la API — endpoint unificado /analisis/subir
+    // 2. Preparar el archivo para la API
     const userId = localStorage.getItem('usuario_id');
     const formData = new FormData();
     formData.append('archivo', file);
@@ -139,7 +172,6 @@ export default function AnalysisView({ onShowResults }: Props) {
       }
 
       const data = await response.json();
-      console.log("¡Archivo aceptado por Theobrama!", data);
 
       // 3. Actualizamos el registro temporal con el ID real del análisis
       setRecords((prev) => prev.map((rec) => 
@@ -181,9 +213,8 @@ export default function AnalysisView({ onShowResults }: Props) {
           className="hidden" 
           onChange={(e) => {
             if (e.target.files && e.target.files.length > 0) {
-            handleFileUpload(e.target.files[0]);
-            // Limpiamos el input para permitir subir el mismo archivo dos veces si es necesario
-            e.target.value = '';
+              handleFileUpload(e.target.files[0]);
+              e.target.value = '';
             }
           }} 
         />
@@ -270,7 +301,6 @@ function AnalysisCard({ rec, editingId, editName, onEditName, onStartEdit, onSav
   const isEditing = editingId === rec.id
   const isVideo = rec.type === 'video'
 
-  // Color del indicador de estado
   const statusColor = rec.status === 'Análisis Terminado' ? 'bg-sage-500'
     : rec.status === 'Procesando' || rec.status === 'Pendiente' ? 'bg-amber-400'
     : 'bg-red-400';

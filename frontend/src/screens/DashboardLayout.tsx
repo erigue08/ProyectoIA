@@ -51,6 +51,11 @@ const navItems: { id: DashboardView; label: string; icon: React.ReactNode }[] = 
 export default function DashboardLayout({ view, selectedAnalysisId, onViewChange, onShowResults, onBackToAnalysis }: Props) {
   const activeNav = view === 'results' ? 'analysis' : view
 
+  // --- FIX IMPLEMENTADO AQUÍ: Recuperar datos reales de sesión ---
+  const userName = localStorage.getItem('usuario_nombre') || 'Usuario Analista';
+  const userEmail = localStorage.getItem('usuario_correo') || 'Agrónomo';
+  const userInitials = userName.substring(0, 2).toUpperCase();
+
   return (
     <div className="flex h-screen bg-stone-100 overflow-hidden">
       {/* Sidebar */}
@@ -90,15 +95,15 @@ export default function DashboardLayout({ view, selectedAnalysisId, onViewChange
           ))}
         </nav>
 
-        {/* User badge */}
+        {/* User badge dinámico */}
         <div className="px-4 py-4 border-t border-cacao-700/50">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-cacao-500 flex items-center justify-center text-xs font-bold text-cacao-50">
-              JR
+              {userInitials}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-cacao-100 truncate">Jorge Ramírez</div>
-              <div className="text-xs text-cacao-500 truncate">Agrónomo Senior</div>
+              <div className="text-xs font-semibold text-cacao-100 truncate">{userName}</div>
+              <div className="text-xs text-cacao-500 truncate">{userEmail}</div>
             </div>
           </div>
         </div>

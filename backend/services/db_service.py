@@ -44,6 +44,8 @@ def guardar_resultados_y_terminar(db: Session, id_analisis: int, resultados: dic
     nuevo_resumen = ResultadoResumen(
         id_analisis=id_analisis,
         total_frutos_detectados=resultados.get("total_frutos", 0),
+        porcentaje_sanos=resultados.get("porcentaje_sanos", 0.0),
+        porcentaje_enfermos=resultados.get("porcentaje_enfermos", 0.0),
         etapa_predominante=resultados.get("etapa_predominante", "Desconocida")
     )
     db.add(nuevo_resumen)

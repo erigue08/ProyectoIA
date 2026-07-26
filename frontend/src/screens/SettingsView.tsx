@@ -1,14 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function SettingsView() {
-  const [nombre, setNombre] = useState('Jorge Ramírez')
-  const [correo, setCorreo] = useState('jorge.ramirez@fincalaspalmas.ec')
+  // FIX: Inicializar los estados leyendo desde el localStorage en lugar de tenerlos quemados
+  const [nombre, setNombre] = useState(localStorage.getItem('usuario_nombre') || '')
+  const [correo, setCorreo] = useState(localStorage.getItem('usuario_correo') || '')
+  
   const [passActual, setPassActual] = useState('')
   const [passNuevo, setPassNuevo] = useState('')
   const [passConfirm, setPassConfirm] = useState('')
+  
   const [savedName, setSavedName] = useState(false)
   const [savedEmail, setSavedEmail] = useState(false)
   const [savedPass, setSavedPass] = useState(false)
+
+  // Extraer las iniciales reales para el avatar
+  const userInitials = nombre ? nombre.substring(0, 2).toUpperCase() : 'U';
 
   const flash = (setter: (v: boolean) => void) => {
     setter(true)
@@ -26,7 +32,8 @@ export default function SettingsView() {
       <div className="bg-white rounded-2xl border border-stone-200 p-6 mb-6 flex items-center gap-5">
         <div className="relative flex-shrink-0">
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cacao-300 to-cacao-600 flex items-center justify-center shadow-md">
-            <span className="text-2xl font-bold text-cacao-50">JR</span>
+            {/* FIX: Mostrar iniciales dinámicas */}
+            <span className="text-2xl font-bold text-cacao-50">{userInitials}</span>
           </div>
           <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-sage-500 rounded-full flex items-center justify-center border-2 border-white">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -35,9 +42,10 @@ export default function SettingsView() {
           </div>
         </div>
         <div>
-          <p className="font-bold text-cacao-800 text-lg leading-tight">{nombre}</p>
+          {/* FIX: Mostrar nombre y correo dinámicos en el encabezado */}
+          <p className="font-bold text-cacao-800 text-lg leading-tight">{nombre || 'Usuario'}</p>
           <p className="text-sm text-stone-500">{correo}</p>
-          <p className="text-xs text-cacao-400 mt-1">Agrónomo Senior · Finca Las Palmas</p>
+          <p className="text-xs text-cacao-400 mt-1">Usuario de Cacao Analysis</p>
         </div>
         <div className="ml-auto">
           <button className="px-4 py-2 border border-cacao-300 text-cacao-700 text-sm font-medium rounded-lg hover:bg-cacao-50 transition-all flex items-center gap-2">
@@ -53,7 +61,11 @@ export default function SettingsView() {
       <Section title="Cambiar Nombre" subtitle="Actualice su nombre completo">
         <div className="space-y-3">
           <FormField label="Nombre completo" value={nombre} onChange={setNombre} placeholder="Ingrese su nombre" />
-          <SaveButton saved={savedName} onClick={() => flash(setSavedName)} />
+          <SaveButton saved={savedName} onClick={() => {
+            // Aquí puedes agregar la lógica para guardar en FastAPI más adelante
+            localStorage.setItem('usuario_nombre', nombre);
+            flash(setSavedName);
+          }} />
         </div>
       </Section>
 
@@ -61,7 +73,11 @@ export default function SettingsView() {
       <Section title="Cambiar Correo" subtitle="Actualice su dirección de correo electrónico">
         <div className="space-y-3">
           <FormField label="Correo electrónico" value={correo} onChange={setCorreo} type="email" placeholder="correo@ejemplo.com" />
-          <SaveButton saved={savedEmail} onClick={() => flash(setSavedEmail)} />
+          <SaveButton saved={savedEmail} onClick={() => {
+            // Aquí puedes agregar la lógica para guardar en FastAPI más adelante
+            localStorage.setItem('usuario_correo', correo);
+            flash(setSavedEmail);
+          }} />
         </div>
       </Section>
 

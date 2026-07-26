@@ -52,7 +52,6 @@ export default function LoginScreen({ onLogin }: Props) {
     try {
       if (viewMode === 'forgot') {
         // --- LÓGICA DE RECUPERACIÓN DE CONTRASEÑA ---
-        // Requiere un endpoint en FastAPI, ej: @app.post("/recuperar_contrasena")
         const response = await fetch(`${API_BASE_URL}/usuarios/recuperar_contrasena`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -82,7 +81,12 @@ export default function LoginScreen({ onLogin }: Props) {
         }
 
         const data = await response.json();
+        
+        // --- FIX IMPLEMENTADO AQUÍ: Guardar todos los datos de sesión ---
         localStorage.setItem('usuario_id', String(data.id_usuario));
+        localStorage.setItem('usuario_nombre', data.nombre_completo || data.nombre_usuario);
+        localStorage.setItem('usuario_correo', data.correo_electronico || '');
+        
         onLogin();
 
       } else {
@@ -99,7 +103,12 @@ export default function LoginScreen({ onLogin }: Props) {
         if (!response.ok) throw new Error('Credenciales incorrectas');
 
         const data = await response.json();
-        localStorage.setItem('usuario_id', data.id_usuario);
+        
+        // --- FIX IMPLEMENTADO AQUÍ: Guardar todos los datos de sesión ---
+        localStorage.setItem('usuario_id', String(data.id_usuario));
+        localStorage.setItem('usuario_nombre', data.nombre_completo || data.nombre_usuario);
+        localStorage.setItem('usuario_correo', data.correo_electronico || '');
+        
         onLogin();
       }
 

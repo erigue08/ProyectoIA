@@ -28,8 +28,10 @@ def obtener_historial_usuario(id_usuario: int, db: Session):
     )
 
 def eliminar_analisis_db(id_analisis: int, db: Session):
-    analisis = _obtener_analisis_o_404(id_analisis, db)
-    db.delete(analisis)
+    # Ejecutamos el DELETE directamente. 
+    # Esto delega el borrado en cascada directamente al motor de SQL Server,
+    # evitando que SQLAlchemy intente poner las FK en NULL y rompa la integridad.
+    db.query(AnalisisMedia).filter(AnalisisMedia.id_analisis == id_analisis).delete(synchronize_session=False)
     db.commit()
 
 def obtener_resumen_db(id_analisis: int, db: Session):

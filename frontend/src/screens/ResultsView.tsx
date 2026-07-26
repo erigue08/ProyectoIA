@@ -4,6 +4,7 @@ import {
   PieChart, Pie,
 } from 'recharts'
 const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 interface Props {
   analysisId: string
   onBack: () => void
@@ -68,11 +69,15 @@ export default function ResultsView({ analysisId, onBack }: Props) {
   const [downloadOpen, setDownloadOpen] = useState(false)
   const [data, setData] = useState<typeof fallbackData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // FIX: Nuevo estado para manejar errores reales del backend [cite: 60, 93]
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     const fetchResults = async () => {
       try {
         setIsLoading(true);
+        setError(false);
         
         // Protección: Si es un ID de prueba de Figma (a1, a2), cargamos el diseño estático
         if (analysisId.startsWith('a')) {
@@ -122,10 +127,13 @@ export default function ResultsView({ analysisId, onBack }: Props) {
           ? `${API_BASE_URL}/static${realData.ruta_archivo_procesado}`
           : fallbackData.thumbnail;
 
+        // FIX: Detectar dinámicamente si es video o imagen por la extensión [cite: 82, 92]
+        const isVideoFile = Boolean(realData.nombre_archivo?.match(/\.(mp4|avi|mov|mkv)$/i));
+
         const mappedData = {
           fileName: realData.nombre_archivo || 'Analisis_Theobrama.mp4',
           thumbnail: thumbnailUrl,
-          isVideo: true, 
+          isVideo: isVideoFile, // Se inyecta dinámicamente en lugar de quemarlo
           
           cacao: cacaoData.length > 0 ? cacaoData : [
             { label: 'Sin datos', count: 0, color: '#a8a29e' },
@@ -146,8 +154,12 @@ export default function ResultsView({ analysisId, onBack }: Props) {
         setData(mappedData);
       } catch (error) {
         console.error("Fallo la sincronización con Theobrama:", error);
-        // Si hay error de red, renderizamos la data de prueba para no quebrar la pantalla
-        setData(fallbackData);
+        // FIX: Evitamos inyectar la data quemada (fallbackData) si es un análisis real que falló [cite: 90, 91, 93]
+        if (!analysisId.startsWith('a')) {
+          setError(true);
+        } else {
+          setData(fallbackData);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -157,12 +169,37 @@ export default function ResultsView({ analysisId, onBack }: Props) {
   }, [analysisId]);
 
   // Pantalla temporal de carga mientras se hace la petición HTTP
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center h-[60vh]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-cacao-200 border-t-cacao-700 rounded-full animate-spin" />
           <p className="text-cacao-700 font-medium">Obteniendo métricas...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // FIX: Pantalla de error para evitar que la UI se rompa o muestre datos de otro archivo [cite: 61]
+  if (error || !data) {
+    return (
+      <div className="p-8 flex items-center justify-center h-[60vh]">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-2">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-cacao-800">Error de Sincronización</h2>
+          <p className="text-sm text-stone-500">
+            No se pudieron cargar los resultados de la IA para este análisis. Puede que el archivo haya sido eliminado o exista un problema de conexión.
+          </p>
+          <button 
+            onClick={onBack} 
+            className="mt-2 px-6 py-2.5 bg-cacao-700 hover:bg-cacao-600 text-white font-semibold rounded-lg transition-colors shadow-sm"
+          >
+            Volver al Historial
+          </button>
         </div>
       </div>
     );
@@ -259,12 +296,14 @@ function MediaViewer({ data }: { data: typeof fallbackData }) {
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
       <div className="relative bg-cacao-900 aspect-video">
-        <img src={data.thumbnail} alt={data.fileName} className="w-full h-full object-cover opacity-90" />
+        {/* Se usa object-contain en lugar de object-cover para que las imágenes completas no se recorten */}
+        <img src={data.thumbnail} alt={data.fileName} className="w-full h-full object-contain opacity-90" />
 
         {/* Bounding boxes simulation */}
-        <BoundingBoxes />
+        {/* Descomenta la siguiente línea si deseas renderizar cajas simuladas. Si la IA ya devuelve la foto con las cajas pintadas, mantén esto comentado. */}
+        {/* <BoundingBoxes /> */}
 
-        {/* Video overlay */}
+        {/* Video overlay (Solo se muestra si es dinámicamente un video) */}
         {data.isVideo && (
           <div className="absolute inset-0 flex items-end">
             <div className="w-full bg-gradient-to-t from-black/60 to-transparent px-4 pb-3 pt-6">
@@ -299,7 +338,7 @@ function MediaViewer({ data }: { data: typeof fallbackData }) {
             IA Activa
           </span>
           <span className="px-2 py-0.5 bg-sage-700/80 text-sage-50 text-xs font-semibold rounded-md backdrop-blur-sm">
-            260 objetos detectados
+            Theobroma Processed
           </span>
         </div>
       </div>
@@ -374,8 +413,8 @@ function CacaoCountChart({ data }: { data: typeof fallbackData['cacao'] }) {
 
 function DiseaseChart({ data }: { data: typeof fallbackData['diseases'] }) {
   const pieData = [
-    { name: 'Afectados', value: Math.round(data.reduce((s, d) => s + d.affected, 0) / data.length) },
-    { name: 'Sanos', value: Math.round(data.reduce((s, d) => s + d.healthy, 0) / data.length) },
+    { name: 'Afectados', value: Math.round(data.reduce((s, d) => s + d.affected, 0) / (data.length || 1)) },
+    { name: 'Sanos', value: Math.round(data.reduce((s, d) => s + d.healthy, 0) / (data.length || 1)) },
   ]
   const COLORS = ['#c0844a', '#6d9f48']
 

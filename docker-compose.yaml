@@ -37,8 +37,8 @@ services:
       - DB_USER=SA
       - DB_PASSWORD=Cacao_Secure_2026!
       # --- VARIABLES DE RUNPOD ---
-      - RUNPOD_API_URL=http://86.200.48.42:10077
-      - RUNPOD_WS_URL=ws://86.200.48.42:10077
+      - RUNPOD_API_URL=http://172.29.81.53:9000
+      - RUNPOD_WS_URL=ws://172.29.81.53:9000
  
   # CONTENEDOR 3: Base de Datos SQL Server
   db_service:
